@@ -1,1 +1,389 @@
+<!DOCTYPE html>
+<html lang="zh-TW">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Learning AI Platform</title>
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/css/bootstrap.min.css" rel="stylesheet">
+    <style>
+        /* 基本自定義樣式 */
+        body { background-color: #f4f7f6; font-family: 'Segoe UI', Roboto, Helvetica, Arial, sans-serif; }
+        .container { max-width: 960px; background: #fff; padding: 30px; margin-top: 30px; border-radius: 12px; box-shadow: 0 4px 15px rgba(0,0,0,0.1); }
+        h1, h2, h3 { color: #2c3e50; }
+        /* 隱藏區塊 */
+        #quiz-section, #result-section, #loading-overlay { display: none; }
+        /* Loading 遮罩 */
+        #loading-overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(255,255,255,0.9); z-index: 9999; display: flex; justify-content: center; align-items: center; flex-direction: column; }
+        /* 考試介面樣式 */
+        .question-card { border-left: 4px solid #0d6efd; padding: 20px; background: #f8f9fa; margin-bottom: 25px; border-radius: 8px; }
+        .sub-question { margin-top: 15px; padding: 15px; background: #fff; border: 1px solid #dee2e6; border-radius: 6px; }
+        .options-list .form-check { margin-bottom: 10px; padding: 10px 10px 10px 35px; border: 1px solid #e9ecef; border-radius: 6px; transition: all 0.2s; }
+        .options-list .form-check:hover { background-color: #e9ecef; }
+        .btn-primary { padding: 10px 25px; font-weight: 600; }
+        /* 診斷報告樣式 */
+        .diagnostic-report h3 { margin-top: 25px; border-bottom: 2px solid #0d6efd; padding-bottom: 10px; font-size: 1.3rem; }
+        .diagnostic-report ul { padding-left: 20px; }
+        .diagnostic-report li { margin-bottom: 10px; }
+    </style>
 
+    <script src="https://code.jquery.com/jquery-3.6.0.min.js"></script>
+
+    <script>
+    MathJax = {
+      tex: {
+        inlineMath: [['$', '$'], ['\\(', '\\)']], // 配置行內公式分隔符
+        displayMath: [['$$', '$$'], ['\\[', '\\]']], // 配置區塊公式分隔符
+        processEscapes: true
+      },
+      svg: {
+        fontCache: 'global'
+      }
+    };
+    </script>
+    <script id="MathJax-script" async src="https://cdn.jsdelivr.net/npm/mathjax@3/es5/tex-mml-svg.js"></script>
+</head>
+<body>
+
+<div id="loading-overlay">
+    <div class="spinner-border text-primary" role="status" style="width: 4rem; height: 4rem;">
+        <span class="visually-hidden">Loading...</span>
+    </div>
+    <h4 class="mt-3" id="loading-text">AI 正在處理中，請稍候...</h4>
+    <p class="text-muted">這可能需要 30-60 秒，取決於內容長度。</p>
+</div>
+
+<div class="container">
+    <header class="d-flex flex-wrap justify-content-between align-items-center pb-3 mb-4 border-bottom">
+        <a href="/" class="d-flex align-items-center text-dark text-decoration-none">
+            <span class="fs-3 fw-bold">Learning AI (V1)</span>
+        </a>
+        <div class="dropdown">
+             <button class="btn btn-outline-secondary dropdown-toggle" type="button" id="langDropdown" data-bs-toggle="dropdown" aria-expanded="false">
+               Language (Demo)
+             </button>
+             <ul class="dropdown-menu" aria-labelledby="langDropdown">
+               <li><a class="dropdown-item" href="#">English</a></li>
+               <li><a class="dropdown-item" href="#">中文(簡)</a></li>
+               <li><a class="dropdown-item" href="#">中文(繁)</a></li>
+               <li><a class="dropdown-item" href="#">Bahasa Melayu</a></li>
+             </ul>
+        </div>
+    </header>
+
+    <div id="upload-section">
+        <h2 class="mb-4">教師後台：課文上傳與命題</h2>
+        <p class="text-muted">請填寫課文資訊並貼上純文字內容，AI 將自動為您生成試題。</p>
+        <form id="uploadForm">
+            <div class="row g-3 mb-3">
+                <div class="col-md-6">
+                    <label for="stage" class="form-label">學習階段</label>
+                    <select class="form-select" id="stage" name="stage" required>
+                        <option value="高中" selected>高中 (Senior High)</option>
+                        <option value="初中">初中 (Junior High)</option>
+                    </select>
+                </div>
+                <div class="col-md-6">
+                    <label for="grade" class="form-label">年級</label>
+                    <select class="form-select" id="grade" name="grade" required>
+                        <option value="高一">高一 / 初一</option>
+                        <option value="高二" selected>高二 / 初二</option>
+                        <option value="高三">高三 / 初三</option>
+                    </select>
+                </div>
+                <div class="col-md-4">
+                    <label for="subject" class="form-label">科目</label>
+                    <input type="text" class="form-control" id="subject" name="subject" placeholder="例如：化學" required>
+                </div>
+                <div class="col-md-4">
+                    <label for="volume" class="form-label">冊別</label>
+                    <input type="text" class="form-control" id="volume" name="volume" placeholder="例如：第二冊">
+                </div>
+                <div class="col-md-4">
+                    <label for="lessonNum" class="form-label">課別</label>
+                    <input type="text" class="form-control" id="lessonNum" name="lessonNum" placeholder="例如：Ch 5">
+                </div>
+                <div class="col-12">
+                    <label for="lessonName" class="form-label">課名</label>
+                    <input type="text" class="form-control" id="lessonName" name="lessonName" placeholder="例如：氧化還原反應" required>
+                </div>
+            </div>
+
+            <div class="mb-3">
+                <label for="contentBody" class="form-label">課文內容 (純文字)</label>
+                <textarea class="form-control" id="contentBody" name="contentBody" rows="10" placeholder="請在此貼上課文的純文字內容。暫不支持圖片或 PDF 直接上傳。" required></textarea>
+            </div>
+
+            <div class="d-grid gap-2 d-md-flex justify-content-md-end">
+                <button type="submit" class="btn btn-primary btn-lg">提交並生成試題</button>
+            </div>
+        </form>
+    </div>
+
+
+    <div id="quiz-section">
+        <div class="d-flex justify-content-between align-items-center mb-4">
+             <h2 id="quiz-title">隨堂測驗</h2>
+             <span class="badge bg-secondary fs-5" id="progress-badge">進度: 1 / 10</span>
+        </div>
+        <div class="progress mb-4" style="height: 5px;">
+            <div class="progress-bar" id="progress-bar-visual" role="progressbar" style="width: 0%"></div>
+        </div>
+
+        <div id="question-container">
+            </div>
+
+        <div class="d-grid gap-2 d-md-flex justify-content-md-end mt-4">
+            <button id="next-btn" class="btn btn-primary btn-lg">下一題</button>
+        </div>
+    </div>
+
+
+    <div id="result-section">
+         <div class="text-center mb-5">
+            <h2>測驗結果與 AI 診斷報告</h2>
+            <p class="lead text-muted">以下是您的 AI 學習診療醫師為您提供的分析。</p>
+            <div class="display-4 fw-bold text-primary" id="score-display">-- / 100</div>
+            <span class="badge bg-warning text-dark">(註: 目前僅包含選擇題得分)</span>
+        </div>
+
+        <div class="card">
+            <div class="card-header bg-primary text-white fw-bold">
+                🩺 AI 醫師診斷報告 (Dr. AI Diagnostic Report)
+            </div>
+            <div class="card-body diagnostic-report" id="diagnostic-content">
+                <p>正在載入診斷報告...</p>
+            </div>
+        </div>
+
+        <div class="text-center mt-5">
+             <button class="btn btn-outline-primary" onclick="location.reload()">返回首頁 (開始新測驗)</button>
+        </div>
+    </div>
+
+</div> <script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.0/dist/js/bootstrap.bundle.min.js"></script>
+
+
+<script>
+// ================= 全域變數控制考試流程 =================
+let currentQuizData = [];
+let currentQuestionIndex = 0;
+let studentAnswers = [];
+let currentLessonId = null;
+
+$(document).ready(function() {
+    // 綁定上傳表單提交事件
+    $('#uploadForm').on('submit', function(e) {
+        e.preventDefault();
+        showLoading('AI 正在閱讀課文並努力命題中 (約需 30-60 秒)...');
+        
+        // 獲取表單資料
+        const formData = {
+            stage: $('#stage').val(),
+            grade: $('#grade').val(),
+            subject: $('#subject').val(),
+            volume: $('#volume').val(),
+            lessonNum: $('#lessonNum').val(),
+            lessonName: $('#lessonName').val(),
+            contentBody: $('#contentBody').val()
+        };
+
+        // 呼叫後端 GAS 函數
+        google.script.run
+            .withSuccessHandler(function(response) {
+                hideLoading();
+                if (response.status === 'success') {
+                    alert(response.message);
+                    // 開始考試流程
+                    currentLessonId = response.lessonId;
+                    startQuiz(response.quizData);
+                } else {
+                    alert('錯誤: ' + response.message);
+                }
+            })
+            .withFailureHandler(function(error) {
+                hideLoading();
+                alert('伺服器錯誤: ' + error.message);
+            })
+            .handleUpload(formData);
+    });
+
+    // 綁定下一題按鈕事件
+    $('#next-btn').on('click', nextQuestion);
+});
+
+// 顯示 Loading 遮罩
+function showLoading(text) {
+    $('#loading-text').text(text || 'Loading...');
+    $('#loading-overlay').fadeIn();
+}
+// 隱藏 Loading 遮罩
+function hideLoading() {
+    $('#loading-overlay').fadeOut();
+}
+
+// ================= 考試流程函數 =================
+
+// 開始考試：初始化狀態並切換介面
+function startQuiz(questions) {
+    currentQuizData = questions;
+    currentQuestionIndex = 0;
+    studentAnswers = [];
+    
+    // 切換介面
+    $('#upload-section').hide();
+    $('#result-section').hide();
+    $('#quiz-section').fadeIn();
+
+    renderQuestion();
+}
+
+// 渲染當前題目
+function renderQuestion() {
+    const question = currentQuizData[currentQuestionIndex];
+    const $container = $('#question-container');
+    $container.empty(); // 清空舊題
+
+    // 更新進度條
+    const progressText = `進度: ${currentQuestionIndex + 1} / ${currentQuizData.length}`;
+    $('#progress-badge').text(progressText);
+    const progressPercent = ((currentQuestionIndex + 1) / currentQuizData.length) * 100;
+    $('#progress-bar-visual').css('width', progressPercent + '%');
+
+    // 更新按鈕文字
+    if (currentQuestionIndex === currentQuizData.length - 1) {
+        $('#next-btn').text('查看結果 (提交)');
+    } else {
+        $('#next-btn').text('下一題');
+    }
+
+    let html = '';
+    
+    // 根據題型生成不同的 HTML 結構
+    if (question.type === 'MCQ') {
+        html = `
+            <div class="question-card">
+                <div class="mb-3">
+                    <span class="badge bg-info text-dark mb-2">${question.context_tag || 'General'}</span>
+                    <span class="badge bg-secondary mb-2">${question.difficulty} | ${question.marks} 分</span>
+                    <h5 class="card-title fw-bold">${question.question_text}</h5>
+                </div>
+                <div class="options-list">
+                    ${Object.entries(question.options).map(([key, value]) => `
+                        <div class="form-check">
+                            <input class="form-check-input" type="radio" name="mcq-option" id="option${key}" value="${key}">
+                            <label class="form-check-label w-100" for="option${key}">
+                                <strong>${key}.</strong> ${value}
+                            </label>
+                        </div>
+                    `).join('')}
+                </div>
+            </div>
+        `;
+    } else if (question.type === 'EIQ_GROUP' || question.type === 'SAQ_GROUP') {
+        // 題組型 (實驗題或簡答題)
+        html = `
+            <div class="question-card">
+                <div class="mb-3">
+                    <span class="badge bg-warning text-dark mb-2">題組 | ${question.marks} 分總分</span>
+                    <h5 class="card-title fw-bold">${question.main_text}</h5>
+                </div>
+                ${question.sub_questions.map(subQ => `
+                    <div class="sub-question" data-sub-id="${subQ.sub_id}">
+                        <label class="form-label fw-bold">${subQ.question_text} (${subQ.marks} 分)</label>
+                        <textarea class="form-control" rows="3" placeholder="請在此輸入您的答案..."></textarea>
+                    </div>
+                `).join('')}
+            </div>
+        `;
+    }
+
+    $container.html(html);
+
+    // 【重要】通知 MathJax 重新渲染新插入的內容中的公式
+    if (window.MathJax) {
+        MathJax.typesetPromise && MathJax.typesetPromise([$container[0]]);
+    }
+}
+
+// 處理下一題邏輯
+function nextQuestion() {
+    const question = currentQuizData[currentQuestionIndex];
+    
+    // 1. 收集當前答案
+    if (question.type === 'MCQ') {
+        const selectedOption = $('input[name="mcq-option"]:checked').val();
+        if (!selectedOption) {
+            alert('請選擇一個選項！');
+            return;
+        }
+        studentAnswers.push({
+            question_id: question.id,
+            student_response: selectedOption
+        });
+    } else {
+        // 收集題組的所有小題答案
+        const subAnswers = [];
+        $('#question-container .sub-question').each(function() {
+            const subId = $(this).data('sub-id');
+            const textVal = $(this).find('textarea').val();
+            if (textVal.trim() === "") {
+                 // 這裡可以選擇是否強制學生作答，V1 暫時允許留空
+            }
+            subAnswers.push({ sub_id: subId, response: textVal });
+        });
+        // 將複雜的題組答案轉換為字串儲存，以便後端處理 (簡化 V1)
+        studentAnswers.push({
+            question_id: question.id,
+            student_response: JSON.stringify(subAnswers) 
+        });
+    }
+
+    // 2. 判斷是否結束
+    if (currentQuestionIndex < currentQuizData.length - 1) {
+        currentQuestionIndex++;
+        renderQuestion();
+    } else {
+        // 提交試卷
+        submitQuiz();
+    }
+}
+
+// 提交試卷並獲取結果
+function submitQuiz() {
+    showLoading('正在批改試卷並進行 AI 診斷 (約需 60 秒)...');
+
+    const submissionData = {
+        lessonId: currentLessonId,
+        studentName: '測試學生 (V1)', // V1 暫時寫死
+        answers: studentAnswers
+    };
+
+    google.script.run
+        .withSuccessHandler(function(response) {
+            hideLoading();
+            if (response.status === 'success') {
+                showResults(response);
+            } else {
+                alert('批改失敗: ' + response.message);
+            }
+        })
+        .withFailureHandler(function(error) {
+            hideLoading();
+            alert('提交時發生錯誤: ' + error.message);
+        })
+        .handleGrading(submissionData);
+}
+
+// 顯示結果頁面
+function showResults(data) {
+    $('#quiz-section').hide();
+    $('#result-section').fadeIn();
+
+    $('#score-display').text(`${data.mcqScore} / 100`);
+    // 插入 AI 生成的 HTML 診斷報告
+    $('#diagnostic-content').html(data.diagnostic);
+}
+
+</script>
+</body>
+</html>
